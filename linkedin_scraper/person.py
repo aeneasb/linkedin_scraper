@@ -65,41 +65,64 @@ class Person(Scraper):
         # get experience
         exp = driver.find_element_by_id("experience-section")
         for position in exp.find_elements_by_class_name("pv-position-entity"):
-            position_title = position.find_element_by_tag_name("h3").text.strip()
-            company = position.find_element_by_class_name("pv-entity__secondary-title").text.strip()
+            position_titles = []
+            from_dates = []
+            to_dates = []
+            durations = []
+            locations = []
+            try:
+                header = position.find_element_by_class_name("pv-entity__company-summary-info")
+                company = header.find_element_by_tag_name("h3").text.strip().split('\n')[-1]
+            except:
+                company = position.find_element_by_class_name("pv-entity__secondary-title").text.strip()
+
+            for title in position.find_elements_by_class_name("pv-entity__summary-info--background-section"):
+                position_titles.append(title.find_element_by_tag_name("h3").text.strip().split('\n')[-1])
 
             try:
-                times = position.find_element_by_class_name("pv-entity__date-range").text.strip()
-                times = "\n".join(times.split("\n")[1:])
-                from_date, to_date, duration = time_divide(times)
+                for time in position.find_elements_by_class_name("pv-entity__date-range"):
+                    #times = position.find_element_by_class_name("pv-entity__date-range").text.strip()
+                    date = "\n".join(time.text.strip().split("\n")[1:])
+                    from_date, to_date, duration = time_divide(date,convert=True)
+                    from_dates.append(from_date)
+                    to_dates.append(to_date)
+                    durations.append(duration)
             except:
-                from_date, to_date, duration = ("Unknown", "Unknown", "Unknown")
+                from_dates.append("Unknown")
+                to_dates.append("Unknown")
+                durations.append("Unknown")
             try:
-                location = position.find_element_by_class_name("pv-entity__location").text.strip()
+                for location in position.find_elements_by_class_name("pv-entity__location"):
+                    locations.append(location.text.strip().split('\n')[-1])
             except:
-                location = None
-            experience = Experience( position_title = position_title , from_date = from_date , to_date = to_date, duration = duration, location = location)
+                locations.append("Unknown")
+            experience = Experience(from_date = from_dates, to_date = to_dates, position_title = position_titles, duration = durations, location = locations)
             experience.institution_name = company
             self.add_experience(experience)
 
         driver.execute_script("window.scrollTo(0, Math.ceil(document.body.scrollHeight/1.5));")
 
-        _ = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.ID, "education-section")))
+        try:
+            _ = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.ID, "education-section")))
 
         # get education
-        edu = driver.find_element_by_id("education-section")
-        for school in edu.find_elements_by_class_name("pv-education-entity"):
-            university = school.find_element_by_class_name("pv-entity__school-name").text.strip()
-            degree = "Unknown Degree"
-            try:
-                degree = school.find_element_by_class_name("pv-entity__degree-name").text.strip()
-                times = school.find_element_by_class_name("pv-entity__dates").text.strip()
-                from_date, to_date, duration = time_divide(times)
-            except:
-                from_date, to_date = ("Unknown", "Unknown")
-            education = Education(from_date = from_date, to_date = to_date, degree=degree)
-            education.institution_name = university
-            self.add_education(education)
+            edu = driver.find_element_by_id("education-section")
+            for school in edu.find_elements_by_class_name("pv-education-entity"):
+                university = school.find_element_by_class_name("pv-entity__school-name").text.strip()
+                degree = "Unknown Degree"
+                try:
+                    degree = school.find_element_by_class_name("pv-entity__degree-name").text.strip().split("\n")[-1]
+                    times = school.find_element_by_class_name("pv-entity__dates").text.strip().split("\n")[-1]
+                    from_date, to_date, duration = time_divide(times,convert=False)
+                except:
+                    from_date, to_date = ("Unknown", "Unknown")
+                education = Education(from_date = from_date, to_date = to_date, degree=degree)
+                education.institution_name = university
+                self.add_education(education)
+        except:
+                education = Education(from_date = "Unknown", to_date = "Unknown", degree="Unknown")
+                education.institution_name = "Unknown"
+                self.add_education(education)
 
         if close_on_complete:
             driver.close()
